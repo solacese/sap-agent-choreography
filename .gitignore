@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+lighthouse*/
+.playwright-mcp/
+*-desktop.png
+desktop-initial.png
+mobile-console.png
+fiori-completed.png
+*.local
+.DS_Store
