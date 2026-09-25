@@ -82,6 +82,39 @@ button:focus-visible,
   outline-offset: 2px;
 }
 
+svg.lucide {
+  display: block;
+  flex: 0 0 auto;
+  align-self: center;
+  vertical-align: middle;
+}
+
+.btn,
+.mode-badge,
+.kpi-label,
+.status-label,
+.agent-status,
+.independent-note,
+.live-pill,
+.event-title,
+.approval-title,
+.comparison-label,
+.notice,
+.toast {
+  line-height: 1;
+}
+
+.stage-marker,
+.stage-node,
+.agent-icon,
+.timeline-icon,
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
 .mono,
 .event-type,
 .audit-type,
@@ -730,6 +763,12 @@ main {
   border-radius: 6px;
 }
 
+.comparison-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .comparison-side:last-child {
   color: var(--ink);
   background: #eaf3fc;
@@ -744,6 +783,7 @@ main {
 }
 
 .notice {
+  align-items: center;
   color: #1d2d3e;
   background: #eaf3fc;
   border-color: #0070f2;
