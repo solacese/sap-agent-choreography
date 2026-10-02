@@ -39,8 +39,8 @@ Resources:
         AllowMethods: [GET, POST, OPTIONS]
         MaxAge: 600
       DefaultRouteSettings:
-        ThrottlingBurstLimit: 10
-        ThrottlingRateLimit: 2
+        ThrottlingBurstLimit: 20
+        ThrottlingRateLimit: 10
 
   SessionTable:
     Type: AWS::DynamoDB::Table

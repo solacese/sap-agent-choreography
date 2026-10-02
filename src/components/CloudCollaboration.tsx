@@ -46,7 +46,7 @@ export function CloudCollaboration({ phoneOnly = false }: CloudCollaborationProp
     const timer = window.setInterval(() => void cloudApi.getSession(sessionId).then(({ session }) => {
       setJoined((current) => current ? { ...current, session } : current);
       setData((current) => current ? { ...current, session } : current);
-    }).catch(() => undefined), 1200);
+    }).catch(() => undefined), 3000);
     return () => window.clearInterval(timer);
   }, [available, data?.session.sessionId, joined?.session.sessionId]);
 
