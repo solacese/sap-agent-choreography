@@ -11,6 +11,7 @@ import { OperationsSidebar } from "./components/OperationsSidebar";
 import { Overview } from "./components/Overview";
 import { ScenarioHeader } from "./components/ScenarioHeader";
 import { CloudCollaboration } from "./components/CloudCollaboration";
+import { PhoneApp } from "./components/PhoneApp";
 
 const browserRuntime = createScenarioRuntime();
 const AUTOPLAY_INTERVAL_MS = 900;
@@ -20,6 +21,7 @@ interface AppProps {
 }
 
 export default function App({ runtime = browserRuntime }: AppProps) {
+  const phoneView = new URLSearchParams(window.location.search).get("view") === "phone";
   const snapshot = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
@@ -96,6 +98,8 @@ export default function App({ runtime = browserRuntime }: AppProps) {
   const replayDelivery = async (eventId: string) => {
     await runAction(() => runtime.replayDelivery(eventId));
   };
+
+  if (phoneView) return <PhoneApp />;
 
   const activityIcon = snapshot.lastActivity?.duplicate ? (
     <Info size={16} aria-hidden="true" />

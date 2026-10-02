@@ -26,8 +26,8 @@ async function createSession() {
   await createSessionRecord(session);
   return response(201, {
     session, presenterToken: createToken(sessionId, "presenter"), approverToken: createToken(sessionId, "approver"),
-    joinUrl: `${siteUrl}?session=${sessionId}&code=${session.joinCode}`,
-    approverUrl: `${siteUrl}?session=${sessionId}#token=${encodeURIComponent(createToken(sessionId, "approver"))}&role=approver`,
+    joinUrl: `${siteUrl}?view=phone&session=${sessionId}&code=${session.joinCode}`,
+    approverUrl: `${siteUrl}?view=phone&session=${sessionId}#token=${encodeURIComponent(createToken(sessionId, "approver"))}&role=approver`,
   });
 }
 
