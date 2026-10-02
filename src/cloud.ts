@@ -34,7 +34,7 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   if (!config.apiBaseUrl) throw new Error("Cloud collaboration is not configured");
   const result = await fetch(`${config.apiBaseUrl}${path}`, {
     ...init,
-    headers: { "content-type": "application/json", ...(init?.headers ?? {}) },
+    headers: init?.body ? { "content-type": "application/json", ...(init.headers ?? {}) } : init?.headers,
   });
   const body = await result.json() as T & { error?: string };
   if (!result.ok) throw new Error(body.error ?? `Cloud request failed (${result.status})`);
