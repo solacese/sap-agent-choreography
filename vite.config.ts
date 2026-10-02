@@ -13,6 +13,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html"],
       include: ["src/application/**/*.ts", "src/domain/**/*.ts"],
+      exclude: ["**/* 2.ts", "**/* 2.tsx", "**/*.test.ts", "**/*.test.tsx"],
     },
   },
 });

@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./styles.css";
 import "./fiori.css";
+import "./cloud.css";
 
 const root = document.getElementById("root");
 
