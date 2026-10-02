@@ -9,13 +9,21 @@ const phoneStorageKey = "sap-solace-phone-role-v1";
 type Joined = { session: CloudSession; token: string; role: string; claimedRole?: HumanAgentName };
 const roleNames: HumanAgentName[] = ["sourcing", "logistics", "customer-sla", "supervisor"];
 
-export function CloudCollaboration() {
+interface CloudCollaborationProps { phoneOnly?: boolean }
+
+export function CloudCollaboration({ phoneOnly = false }: CloudCollaborationProps) {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const hashParams = useMemo(() => new URLSearchParams(window.location.hash.replace(/^#/, "")), []);
   const [available, setAvailable] = useState(false);
   const [transport, setTransport] = useState<"solace" | "aws-direct-fallback">("aws-direct-fallback");
   const [data, setData] = useState<CreatedCloudSession | null>(() => { try { return JSON.parse(localStorage.getItem(storageKey) ?? "null") as CreatedCloudSession | null; } catch { return null; } });
-  const [joined, setJoined] = useState<Joined | null>(() => { try { return JSON.parse(sessionStorage.getItem(phoneStorageKey) ?? "null") as Joined | null; } catch { return null; } });
+  const [joined, setJoined] = useState<Joined | null>(() => {
+    try {
+      const stored = JSON.parse(sessionStorage.getItem(phoneStorageKey) ?? "null") as Joined | null;
+      const requestedSession = params.get("session");
+      return stored && (!requestedSession || stored.session.sessionId === requestedSession) ? stored : null;
+    } catch { return null; }
+  });
   const [open, setOpen] = useState(Boolean(params.get("code")));
   const [busy, setBusy] = useState(false);
   const [qr, setQr] = useState("");
@@ -65,12 +73,12 @@ export function CloudCollaboration() {
   const claimRole = async (role: HumanAgentName) => { if (!joined || !displayName.trim()) return; await act("claim-role", joined.token, joined.session, { agent: role, displayName: displayName.trim() }); setJoined((current) => { if (!current) return current; const next = { ...current, claimedRole: role }; sessionStorage.setItem(phoneStorageKey, JSON.stringify(next)); return next; }); };
 
   if (!available) return null;
-  return <section className="cloud-collaboration" aria-labelledby="cloud-title">
+  return <section className={phoneOnly ? "cloud-collaboration phone-only-card" : "cloud-collaboration"} aria-labelledby="cloud-title">
     <div className="cloud-summary"><span className="cloud-icon"><Cloud size={18} /></span><div><strong id="cloud-title">{transport === "solace" ? "Solace multiplayer demo" : "Cloud multiplayer preview"}</strong><span>{transport === "solace" ? "Solace AEM · people become agents · phone approval" : "People become agents · phone approval · Solace connection pending"}</span></div></div>
-    {!session ? <button className="btn btn-primary" onClick={create} disabled={busy}>{busy ? <LoaderCircle size={15} className="spin" /> : <Smartphone size={15} />} Start multiplayer session</button> : <div className="cloud-actions">
-      <span className="cloud-code">Join code <strong>{session.joinCode}</strong></span><button className="btn" onClick={() => setOpen(true)}><QrCode size={15} /> Connect players</button>
-      {!isPhone && session.events.length === 0 ? <><button className="btn" onClick={() => void act("mode", actionToken!, session, { mode: session.mode === "human-agents" ? "autonomous" : "human-agents" })}>{session.mode === "human-agents" ? "Human agents" : "Autonomous"}</button><button className="btn btn-primary" onClick={() => void act("trigger", actionToken!, session)} disabled={busy}>Start scenario</button></> : null}
-    </div>}
+    {!session && !phoneOnly ? <button className="btn btn-primary" onClick={create} disabled={busy}>{busy ? <LoaderCircle size={15} className="spin" /> : <Smartphone size={15} />} Start multiplayer session</button> : session ? <div className="cloud-actions">
+      <span className="cloud-code">Session <strong>{session.joinCode}</strong></span>{!phoneOnly ? <button className="btn" onClick={() => setOpen(true)}><QrCode size={15} /> Connect players</button> : null}
+      {!isPhone && !phoneOnly && session.events.length === 0 ? <><button className="btn" onClick={() => void act("mode", actionToken!, session, { mode: session.mode === "human-agents" ? "autonomous" : "human-agents" })}>{session.mode === "human-agents" ? "Human agents" : "Autonomous"}</button><button className="btn btn-primary" onClick={() => void act("trigger", actionToken!, session)} disabled={busy}>Start scenario</button></> : null}
+    </div> : phoneOnly ? <div className="phone-loading"><LoaderCircle size={18} className="spin" /> Joining session…</div> : null}
 
     {session ? <><div className="integration-journey"><span>SAP S/4HANA event</span><b>→</b><span>Solace AEM</span><b>→</b><span>Human agent teams</span><b>→</b><span>Supervisor</span><b>→</b><span>Approval</span></div>
       <div className="role-board" aria-label="Multiplayer roles">{roleNames.map((role) => <div className="role-seat" data-status={session.agentStatus[role]} key={role}><span><strong>{role.replace("-", "/")}</strong><small>{session.roleClaims[role]?.displayName ?? "Open seat"}</small></span><em>{session.agentStatus[role]}</em></div>)}</div></> : null}
