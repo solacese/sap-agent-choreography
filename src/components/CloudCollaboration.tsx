@@ -47,8 +47,21 @@ export function CloudCollaboration() {
     catch (cause) { setError(cause instanceof Error ? cause.message : "Cloud action failed"); } finally { setBusy(false); }
   };
 
-  const session = joined?.session ?? data?.session; const actionToken = joined?.token ?? data?.presenterToken; const isPhone = Boolean(joined);
-  const claimedRole = joined?.claimedRole ?? (joined ? roleNames.find((role) => joined.session.roleClaims[role]?.subject && joined.token.includes(joined.session.roleClaims[role]!.subject)) : undefined);
+  const rawSession = joined?.session ?? data?.session;
+  const session = rawSession ? {
+    ...rawSession,
+    mode: rawSession.mode ?? "human-agents" as const,
+    roleClaims: rawSession.roleClaims ?? {},
+    agentResults: rawSession.agentResults ?? {},
+    agentStatus: {
+      sourcing: rawSession.agentStatus?.sourcing ?? "waiting",
+      logistics: rawSession.agentStatus?.logistics ?? "waiting",
+      "customer-sla": rawSession.agentStatus?.["customer-sla"] ?? "waiting",
+      supervisor: rawSession.agentStatus?.supervisor ?? "waiting",
+    },
+  } : undefined;
+  const actionToken = joined?.token ?? data?.presenterToken; const isPhone = Boolean(joined);
+  const claimedRole = joined?.claimedRole ?? (joined && session ? roleNames.find((role) => session.roleClaims[role]?.subject && joined.token.includes(session.roleClaims[role]!.subject)) : undefined);
   const claimRole = async (role: HumanAgentName) => { if (!joined || !displayName.trim()) return; await act("claim-role", joined.token, joined.session, { agent: role, displayName: displayName.trim() }); setJoined((current) => { if (!current) return current; const next = { ...current, claimedRole: role }; sessionStorage.setItem(phoneStorageKey, JSON.stringify(next)); return next; }); };
 
   if (!available) return null;
