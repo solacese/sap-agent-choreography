@@ -10,8 +10,15 @@ export const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 export const lambda = new LambdaClient({});
 const secrets = new SecretsManagerClient({});
 
-export type AgentName = "sourcing" | "logistics" | "customer-sla";
+export type AgentName = "sourcing" | "logistics" | "customer-sla" | "supervisor";
+export type WorkerAgentName = Exclude<AgentName, "supervisor">;
 export type AgentState = "waiting" | "running" | "complete" | "failed";
+
+export interface RoleClaim {
+  subject: string;
+  displayName: string;
+  claimedAt: string;
+}
 
 export interface CloudEvent {
   eventId: string;
@@ -31,8 +38,10 @@ export interface CloudSession {
   expiresAt: number;
   revision: number;
   events: CloudEvent[];
+  mode: "autonomous" | "human-agents";
   agentStatus: Record<AgentName, AgentState>;
   agentResults: Partial<Record<AgentName, Record<string, unknown>>>;
+  roleClaims: Partial<Record<AgentName, RoleClaim>>;
   votes: Record<string, number>;
 }
 
@@ -90,7 +99,7 @@ export async function replaceSession(session: CloudSession, expectedRevision: nu
 
 export async function appendAgentUpdate(
   sessionId: string,
-  agent: AgentName,
+  agent: WorkerAgentName,
   state: AgentState,
   event: CloudEvent,
   result?: Record<string, unknown>,
@@ -119,21 +128,23 @@ export async function findByJoinCode(code: string): Promise<CloudSession | null>
   return sessionId ? loadSession(sessionId) : null;
 }
 
-export function createToken(sessionId: string, role: "presenter" | "approver" | "participant"): string {
+export function createToken(sessionId: string, role: "presenter" | "approver" | "participant", subject = newId("device")): string {
   const expiry = Math.floor(Date.now() / 1000) + 4 * 60 * 60;
-  const value = `${sessionId}.${role}.${expiry}`;
+  const value = `${sessionId}.${role}.${subject}.${expiry}`;
   const signature = createHmac("sha256", process.env.TOKEN_SECRET!).update(value).digest("base64url");
   return `${value}.${signature}`;
 }
 
 export function verifyToken(token: string | undefined, sessionId: string) {
   if (!token) return null;
-  const [tokenSession, role, expiryText, signature] = token.split(".");
-  if (!tokenSession || !role || !expiryText || !signature || tokenSession !== sessionId || Number(expiryText) < Date.now() / 1000) return null;
-  const value = `${tokenSession}.${role}.${expiryText}`;
+  const [tokenSession, role, subject, expiryText, signature] = token.split(".");
+  if (!tokenSession || !role || !subject || !expiryText || !signature || tokenSession !== sessionId || Number(expiryText) < Date.now() / 1000) return null;
+  const value = `${tokenSession}.${role}.${subject}.${expiryText}`;
   const expected = createHmac("sha256", process.env.TOKEN_SECRET!).update(value).digest("base64url");
   const valid = signature.length === expected.length && timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
-  return valid && ["presenter", "approver", "participant"].includes(role) ? role as "presenter" | "approver" | "participant" : null;
+  return valid && ["presenter", "approver", "participant"].includes(role)
+    ? { role: role as "presenter" | "approver" | "participant", subject }
+    : null;
 }
 
 export const newId = (prefix: string) => `${prefix}-${randomBytes(8).toString("hex")}`;
