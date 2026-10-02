@@ -74,9 +74,25 @@ export async function claimMonthlySession(): Promise<void> {
   }));
 }
 
+export function migrateSession(input: Partial<CloudSession> & Pick<CloudSession, "sessionId" | "joinCode" | "createdAt" | "expiresAt" | "revision" | "events" | "status" | "votes">): CloudSession {
+  return {
+    ...input,
+    mode: input.mode ?? "human-agents",
+    agentStatus: {
+      sourcing: input.agentStatus?.sourcing ?? "waiting",
+      logistics: input.agentStatus?.logistics ?? "waiting",
+      "customer-sla": input.agentStatus?.["customer-sla"] ?? "waiting",
+      supervisor: input.agentStatus?.supervisor ?? "waiting",
+    },
+    agentResults: input.agentResults ?? {},
+    roleClaims: input.roleClaims ?? {},
+  };
+}
+
 export async function loadSession(sessionId: string): Promise<CloudSession | null> {
   const result = await ddb.send(new GetCommand({ TableName: tableName, Key: sessionKey(sessionId), ConsistentRead: true }));
-  return (result.Item?.session as CloudSession | undefined) ?? null;
+  const stored = result.Item?.session as CloudSession | undefined;
+  return stored ? migrateSession(stored) : null;
 }
 
 export async function createSessionRecord(session: CloudSession): Promise<void> {
