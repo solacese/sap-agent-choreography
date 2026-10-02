@@ -80,6 +80,8 @@ export async function handler(event: APIGatewayProxyEventV2) {
     const agent = String(body.agent ?? "") as AgentName;
     if (session.roleClaims[agent]?.subject !== role.subject) return response(403, { error: "This participant does not own that role" });
     if (session.agentStatus[agent] === "complete") return response(409, { error: "Decision already submitted" });
+    const scenarioStarted = session.events.some((item) => item.eventType === "order.risk.assessed.v1");
+    if (agent !== "supervisor" && !scenarioStarted) return response(409, { error: "This agent step is not active yet" });
     if (agent === "supervisor") {
       if (!rolesReady(session)) return response(409, { error: "Supervisor must wait for all worker decisions" });
       const recommendedPlanId = String(body.optionId ?? "HUMAN-LOGISTICS-01");

@@ -41,6 +41,12 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser tests
         run: npx playwright test --project=chromium
+      - name: Multiplayer cloud journey
+        if: github.event_name != 'pull_request'
+        env:
+          CLOUD_API_URL: https://m9hclokbbc.execute-api.ca-central-1.amazonaws.com/prod
+          CLOUD_APP_URL: http://127.0.0.1:4173/sap-agent-choreography/
+        run: npx playwright test e2e/multiplayer.spec.ts --project=chromium --workers=1
       - name: Configure Pages
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6

@@ -41,18 +41,21 @@ export function HumanAgentRole({ session, token, role, onSubmit }: Props) {
   const [rationale, setRationale] = useState("");
   const [busy, setBusy] = useState(false);
   const complete = session.agentStatus[role] === "complete";
-  const blocked = role === "supervisor" && !["sourcing", "logistics", "customer-sla"].every((agent) => session.agentStatus[agent as "sourcing" | "logistics" | "customer-sla"] === "complete");
+  const scenarioStarted = session.events.some((event) => event.eventType === "order.risk.assessed.v1");
+  const workersReady = ["sourcing", "logistics", "customer-sla"].every((agent) => session.agentStatus[agent as "sourcing" | "logistics" | "customer-sla"] === "complete");
+  const ready = role === "supervisor" ? workersReady : scenarioStarted;
   const result = useMemo(() => session.agentResults[role], [role, session.agentResults]);
 
   if (complete) return <div className="human-role-complete"><CheckCircle2 size={20} /><div><strong>{brief.title} submitted</strong><span>{String(result?.title ?? result?.recommendedPlanId ?? result?.recommendation ?? "Decision received")}</span></div></div>;
+  if (!ready) return <div className="human-role-waiting"><BrainCircuit size={22} /><div><strong>{brief.title} claimed</strong><span>{role === "supervisor" ? "Your choices unlock after Sourcing, Logistics, and Customer/SLA submit." : "Your private choices unlock when the S/4 risk-assessment event reaches this stage."}</span></div></div>;
   return <div className="human-role-task">
-    <div className="human-role-heading"><BrainCircuit size={20} /><div><strong>{brief.title}</strong><span>{blocked ? "Waiting for all three worker decisions" : brief.brief}</span></div></div>
+    <div className="human-role-heading"><BrainCircuit size={20} /><div><strong>{brief.title}</strong><span>{brief.brief}</span></div></div>
     <div className="human-options" role="radiogroup" aria-label={`${brief.title} choices`}>
-      {brief.options.map((option) => <button type="button" role="radio" aria-checked={selected === option.id} className="human-option" data-selected={selected === option.id} onClick={() => setSelected(option.id)} disabled={blocked} key={option.id}>
+      {brief.options.map((option) => <button type="button" role="radio" aria-checked={selected === option.id} className="human-option" data-selected={selected === option.id} onClick={() => setSelected(option.id)} key={option.id}>
         <CircleDot size={16} /><span><strong>{option.label}</strong><small>{option.detail}</small></span>
       </button>)}
     </div>
-    <label className="rationale-field">Why this choice?<textarea value={rationale} onChange={(event) => setRationale(event.target.value)} placeholder="Add your business rationale" disabled={blocked} /></label>
-    <button className="btn btn-primary" disabled={blocked || busy || !selected} onClick={() => { setBusy(true); void onSubmit(role, selected, rationale).finally(() => setBusy(false)); }}><Send size={15} /> Submit as {brief.title}</button>
+    <label className="rationale-field">Why this choice?<textarea value={rationale} onChange={(event) => setRationale(event.target.value)} placeholder="Add your business rationale" /></label>
+    <button className="btn btn-primary" disabled={busy || !selected} onClick={() => { setBusy(true); void onSubmit(role, selected, rationale).finally(() => setBusy(false)); }}><Send size={15} /> Submit as {brief.title}</button>
   </div>;
 }
