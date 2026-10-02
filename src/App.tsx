@@ -10,6 +10,7 @@ import { EventFabric } from "./components/EventFabric";
 import { OperationsSidebar } from "./components/OperationsSidebar";
 import { Overview } from "./components/Overview";
 import { ScenarioHeader } from "./components/ScenarioHeader";
+import { CloudCollaboration } from "./components/CloudCollaboration";
 
 const browserRuntime = createScenarioRuntime();
 const AUTOPLAY_INTERVAL_MS = 900;
@@ -128,6 +129,7 @@ export default function App({ runtime = browserRuntime }: AppProps) {
           </div>
         ) : null}
 
+        <CloudCollaboration />
         <Overview projection={snapshot.projection} />
         <EventFabric
           envelopes={snapshot.envelopes}

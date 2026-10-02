@@ -1,0 +1,240 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Low-cost Solace + SAP agent choreography demo backend
+
+Parameters:
+  SiteUrl:
+    Type: String
+    Default: https://solacese.github.io/sap-agent-choreography/
+  MonthlyBudgetUsd:
+    Type: Number
+    Default: 20
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures: [arm64]
+    MemorySize: 256
+    Timeout: 15
+    Tracing: Active
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref SessionTable
+        TOKEN_SECRET: !Ref TokenSecret
+        SOLACE_SECRET_ARN: !Ref SolaceSecret
+        SITE_URL: !Ref SiteUrl
+    Tags:
+      Project: sap-agent-choreography
+      CostProfile: demo
+
+Resources:
+  DemoApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      CorsConfiguration:
+        AllowOrigins: ['*']
+        AllowHeaders: [content-type, x-session-token, authorization]
+        AllowMethods: [GET, POST, OPTIONS]
+        MaxAge: 600
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 10
+        ThrottlingRateLimit: 2
+
+  SessionTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  TokenSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Signing secret for short-lived demo session tokens
+      GenerateSecretString:
+        PasswordLength: 48
+        ExcludePunctuation: true
+
+  SolaceSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: Solace REST messaging and RDP callback credentials; configure after deployment
+      SecretString: '{"restUrl":"","username":"","password":"","webhookToken":""}'
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: backend/api.handler
+      Timeout: 20
+      Environment:
+        Variables:
+          SOURCING_FUNCTION: !Ref SourcingFunction
+          LOGISTICS_FUNCTION: !Ref LogisticsFunction
+          CUSTOMER_SLA_FUNCTION: !Ref CustomerFunction
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SessionTable
+        - LambdaInvokePolicy:
+            FunctionName: !Ref SourcingFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref LogisticsFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref CustomerFunction
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Ref SolaceSecret
+      Events:
+        Root:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DemoApi
+            Path: /sessions
+            Method: POST
+        Join:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DemoApi
+            Path: /join
+            Method: POST
+        Session:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DemoApi
+            Path: /sessions/{sessionId}
+            Method: GET
+        Action:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref DemoApi
+            Path: /sessions/{sessionId}/{action}
+            Method: POST
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [backend/api.ts]
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+
+  SourcingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: backend/worker.handler
+      ReservedConcurrentExecutions: 2
+      Environment:
+        Variables:
+          AGENT_NAME: sourcing
+          AGGREGATOR_FUNCTION: !Ref AggregatorFunction
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref SessionTable }
+        - LambdaInvokePolicy: { FunctionName: !Ref AggregatorFunction }
+        - AWSSecretsManagerGetSecretValuePolicy: { SecretArn: !Ref SolaceSecret }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [backend/worker.ts]
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+
+  LogisticsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: backend/worker.handler
+      ReservedConcurrentExecutions: 2
+      Environment:
+        Variables:
+          AGENT_NAME: logistics
+          AGGREGATOR_FUNCTION: !Ref AggregatorFunction
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref SessionTable }
+        - LambdaInvokePolicy: { FunctionName: !Ref AggregatorFunction }
+        - AWSSecretsManagerGetSecretValuePolicy: { SecretArn: !Ref SolaceSecret }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [backend/worker.ts]
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+
+  CustomerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: backend/worker.handler
+      ReservedConcurrentExecutions: 2
+      Environment:
+        Variables:
+          AGENT_NAME: customer-sla
+          AGGREGATOR_FUNCTION: !Ref AggregatorFunction
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref SessionTable }
+        - LambdaInvokePolicy: { FunctionName: !Ref AggregatorFunction }
+        - AWSSecretsManagerGetSecretValuePolicy: { SecretArn: !Ref SolaceSecret }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [backend/worker.ts]
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+
+  AggregatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: backend/aggregator.handler
+      ReservedConcurrentExecutions: 1
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref SessionTable }
+        - AWSSecretsManagerGetSecretValuePolicy: { SecretArn: !Ref SolaceSecret }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [backend/aggregator.ts]
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: sap-agent-choreography-demo-monthly
+        BudgetLimit:
+          Amount: !Ref MonthlyBudgetUsd
+          Unit: USD
+        BudgetType: COST
+        TimeUnit: MONTHLY
+        CostFilters:
+          TagKeyValue:
+            - user:Project$sap-agent-choreography
+
+Outputs:
+  ApiBaseUrl:
+    Value: !Sub https://${DemoApi}.execute-api.${AWS::Region}.amazonaws.com/prod
+  SolaceSecretArn:
+    Value: !Ref SolaceSecret
+  SessionTableName:
+    Value: !Ref SessionTable
+  EstimatedIdleCost:
+    Value: Serverless pay-per-use; expected under $2/month at demo traffic, budget set to $20/month

@@ -791,9 +791,13 @@ main {
   font-size: 0.75rem;
 }
 
+.toast,
+.toast > span {
+  color: #172b3f !important;
+}
+
 .toast {
-  color: var(--ink);
-  background: var(--surface);
+  background: #ffffff;
   border: 1px solid var(--line-strong);
   border-left: 4px solid var(--sap-information);
   border-radius: 4px;

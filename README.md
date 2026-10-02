@@ -134,6 +134,40 @@ The browser implementation is behind explicit `EventTransport` and `CaseReposito
 
 Illustrative labels including SAP TM, SAP S/4HANA, SAP Datasphere, SAP Ariba, SAP Integration Suite, Joule/mobile approval, and carrier/3PL APIs are conceptual integration points only.
 
+## Connected Solace + AWS demo
+
+The public app retains local mode, and can also read `public/runtime-config.json` to enable a shared phone session. The connected architecture follows the SAP integration journey: an illustrative S/4HANA Enterprise Event Enablement signal is guardrailed by the orchestrator, published through Solace, and fans out to independent Sourcing, Logistics, and Customer/SLA workers. A Supervisor joins their results before requesting mobile approval.
+
+AWS is intentionally small and serverless: API Gateway HTTP API, four low-concurrency Lambda workers, DynamoDB on-demand storage with four-hour TTL, Secrets Manager, X-Ray, and a monthly $20 AWS Budget. At demo traffic this should remain well below the budget; AWS Budgets alerts but does not forcibly stop resources.
+
+```bash
+# AWS SSO must already be active; defaults to ca-central-1
+npm run deploy:cloud
+```
+
+The command deploys the stack and updates `public/runtime-config.json` with the API URL. Rebuild and deploy Pages afterward so the browser enables connected mode.
+
+To activate Solace publishing, export the broker and SEMP values locally and run:
+
+```bash
+export SOLACE_SEMP_URL=...
+export SOLACE_VPN=...
+export SOLACE_SEMP_USERNAME=...
+export SOLACE_SEMP_PASSWORD=...
+export SOLACE_REST_URL=...
+export SOLACE_USERNAME=...
+export SOLACE_PASSWORD=...
+npm run configure:solace
+```
+
+The provisioning script creates durable queues for Sourcing, Logistics, Customer/SLA, and audit subscriptions, then writes runtime messaging credentials to AWS Secrets Manager. Never commit these values. If the Solace secret is not configured, cloud sessions use direct concurrent Lambda invocation as an explicit fallback so the phone demo remains testable.
+
+To delete the AWS resources:
+
+```bash
+npm run destroy:cloud
+```
+
 ## Deployment
 
 [`.github/workflows/pages.yml`](.github/workflows/pages.yml) verifies the app and deploys `dist/` through GitHub’s official Pages artifact workflow on pushes to `main` or manual dispatches. Repository Pages must use **GitHub Actions** as its build source.

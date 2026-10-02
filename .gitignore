@@ -1,4 +1,6 @@
 node_modules/
+.aws-sam/
+* 2.*
 dist/
 coverage/
 playwright-report/
