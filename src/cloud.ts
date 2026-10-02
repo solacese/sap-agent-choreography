@@ -14,8 +14,10 @@ export interface CloudSession {
   status: "active" | "approval-required" | "approved" | "rejected" | "completed";
   revision: number;
   events: CloudEvent[];
-  agentStatus: Record<"sourcing" | "logistics" | "customer-sla", "waiting" | "running" | "complete" | "failed">;
+  mode: "autonomous" | "human-agents";
+  agentStatus: Record<"sourcing" | "logistics" | "customer-sla" | "supervisor", "waiting" | "running" | "complete" | "failed">;
   agentResults: Record<string, Record<string, unknown>>;
+  roleClaims: Partial<Record<"sourcing" | "logistics" | "customer-sla" | "supervisor", { subject: string; displayName: string; claimedAt: string }>>;
   votes: Record<string, number>;
 }
 

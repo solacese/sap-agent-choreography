@@ -3,7 +3,8 @@ import { addEvent, createEvent, loadSession, publishSolace, replaceSession } fro
 export async function handler(input: { sessionId: string }) {
   const session = await loadSession(input.sessionId);
   if (!session || session.status !== "active") return;
-  if (!Object.values(session.agentStatus).every((state) => state === "complete")) return;
+  if (!["sourcing", "logistics", "customer-sla"].every((agent) => session.agentStatus[agent as "sourcing" | "logistics" | "customer-sla"] === "complete")) return;
+  if (session.roleClaims.supervisor) return;
   if (session.events.some((event) => event.eventType === "remediation.plan.recommended.v1")) return;
 
   const recommendation = createEvent(session.sessionId, "remediation.plan.recommended.v1", "supervisor-agent", {
@@ -15,7 +16,7 @@ export async function handler(input: { sessionId: string }) {
     planId: "PLAN-LOGISTICS-01", approvalReason: "Incremental spend exceeds the $25,000 auto-clear threshold",
   }, recommendation.eventId);
   const next = addEvent(addEvent(session, recommendation), requested);
-  const pending = { ...next, status: "approval-required" as const };
+  const pending = { ...next, status: "approval-required" as const, agentStatus: { ...next.agentStatus, supervisor: "complete" as const }, agentResults: { ...next.agentResults, supervisor: { recommendedPlanId: "PLAN-LOGISTICS-01", source: "autonomous fallback" } } };
   try {
     await replaceSession(pending, session.revision);
     await Promise.all([publishSolace(recommendation), publishSolace(requested)]);

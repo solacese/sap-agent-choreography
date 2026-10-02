@@ -1,10 +1,10 @@
-import type { AgentName } from "./shared";
+import type { WorkerAgentName } from "./shared";
 import { appendAgentUpdate, createEvent, invokeWorker, loadSession, publishSolace } from "./shared";
 
-const agent = process.env.AGENT_NAME as AgentName;
-const delayByAgent: Record<AgentName, number> = { sourcing: 2200, logistics: 3000, "customer-sla": 1600 };
+const agent = process.env.AGENT_NAME as WorkerAgentName;
+const delayByAgent: Record<WorkerAgentName, number> = { sourcing: 2200, logistics: 3000, "customer-sla": 1600 };
 
-const results: Record<AgentName, Record<string, unknown>> = {
+const results: Record<WorkerAgentName, Record<string, unknown>> = {
   sourcing: {
     proposalId: "PLAN-SOURCE-01", title: "Reallocate regional safety stock",
     incrementalCostUsd: 12000, ordersMeetingSla: 2, sourceSystems: ["SAP Ariba network", "Inventory positions"],
@@ -19,7 +19,7 @@ const results: Record<AgentName, Record<string, unknown>> = {
   },
 };
 
-export async function handler(input: { sessionId: string; agent?: AgentName }) {
+export async function handler(input: { sessionId: string; agent?: WorkerAgentName }) {
   const selectedAgent = input.agent ?? agent;
   const session = await loadSession(input.sessionId);
   if (!session || session.agentStatus[selectedAgent] !== "waiting") return;
