@@ -138,7 +138,7 @@ Illustrative labels including SAP TM, SAP S/4HANA, SAP Datasphere, SAP Ariba, SA
 
 The public app retains local mode, and can also read `public/runtime-config.json` to enable a shared phone session. The connected architecture follows the SAP integration journey: an illustrative S/4HANA Enterprise Event Enablement signal is guardrailed by the orchestrator, published through Solace, and fans out to independent Sourcing, Logistics, and Customer/SLA workers. A Supervisor joins their results before requesting mobile approval.
 
-AWS is intentionally small and serverless: API Gateway HTTP API, four low-concurrency Lambda workers, DynamoDB on-demand storage with four-hour TTL, Secrets Manager, X-Ray, and a monthly $20 AWS Budget. API throttling, reserved Lambda concurrency, and a hard quota of 1,000 new sessions per month bound usage; the AWS Budget remains an alert rather than a forced shutdown. At normal demo traffic the expected spend is under $2/month, excluding any separately billed Solace service.
+AWS is intentionally small and serverless: API Gateway HTTP API, four low-concurrency Lambda workers, DynamoDB on-demand storage with four-hour TTL, Secrets Manager, X-Ray, and a monthly $18 AWS Budget (leaving buffer beneath the €20 ceiling). API throttling, reserved Lambda concurrency, and a hard quota of 1,000 new sessions per month bound usage; the AWS Budget remains an alert rather than a forced shutdown. At normal demo traffic the expected spend is under $2/month, excluding any separately billed Solace service.
 
 ```bash
 # AWS SSO must already be active; defaults to ca-central-1
