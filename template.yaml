@@ -23,6 +23,7 @@ Globals:
         TOKEN_SECRET: !Ref TokenSecret
         SOLACE_SECRET_ARN: !Ref SolaceSecret
         SITE_URL: !Ref SiteUrl
+        MAX_MONTHLY_SESSIONS: 1000
     Tags:
       Project: sap-agent-choreography
       CostProfile: demo
@@ -83,6 +84,7 @@ Resources:
       CodeUri: .
       Handler: backend/api.handler
       Timeout: 20
+      ReservedConcurrentExecutions: 4
       Environment:
         Variables:
           SOURCING_FUNCTION: !Ref SourcingFunction
