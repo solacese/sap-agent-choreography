@@ -24,7 +24,7 @@ export function CloudCollaboration({ phoneOnly = false }: CloudCollaborationProp
       return stored && (!requestedSession || stored.session.sessionId === requestedSession) ? stored : null;
     } catch { return null; }
   });
-  const [open, setOpen] = useState(Boolean(params.get("code")));
+  const [open, setOpen] = useState(!phoneOnly && Boolean(params.get("code")));
   const [busy, setBusy] = useState(false);
   const [qr, setQr] = useState("");
   const [displayName, setDisplayName] = useState("");
