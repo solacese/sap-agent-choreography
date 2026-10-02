@@ -49,6 +49,21 @@ export const response = (statusCode: number, body: unknown) => ({
 });
 
 export const sessionKey = (sessionId: string) => ({ pk: `SESSION#${sessionId}`, sk: "META" });
+export const quotaKey = () => ({ pk: `QUOTA#${new Date().toISOString().slice(0, 7)}`, sk: "SESSIONS" });
+
+export async function claimMonthlySession(): Promise<void> {
+  await ddb.send(new UpdateCommand({
+    TableName: tableName,
+    Key: quotaKey(),
+    UpdateExpression: "SET #count = if_not_exists(#count, :zero) + :one, #ttl = :ttl",
+    ConditionExpression: "attribute_not_exists(#count) OR #count < :max",
+    ExpressionAttributeNames: { "#count": "count", "#ttl": "ttl" },
+    ExpressionAttributeValues: {
+      ":zero": 0, ":one": 1, ":max": Number(process.env.MAX_MONTHLY_SESSIONS ?? 1000),
+      ":ttl": Math.floor(new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 2, 1)).getTime() / 1000),
+    },
+  }));
+}
 
 export async function loadSession(sessionId: string): Promise<CloudSession | null> {
   const result = await ddb.send(new GetCommand({ TableName: tableName, Key: sessionKey(sessionId), ConsistentRead: true }));

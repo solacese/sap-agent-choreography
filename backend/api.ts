@@ -1,6 +1,6 @@
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import {
-  addEvent, createEvent, createJoinCode, createSessionRecord, createToken, findByJoinCode,
+  addEvent, claimMonthlySession, createEvent, createJoinCode, createSessionRecord, createToken, findByJoinCode,
   invokeWorker, loadSession, newId, publishSolace, replaceSession, response, siteUrl, verifyToken,
   type CloudSession,
 } from "./shared";
@@ -9,6 +9,12 @@ const parseBody = (event: APIGatewayProxyEventV2) => event.body ? JSON.parse(eve
 const token = (event: APIGatewayProxyEventV2) => event.headers["x-session-token"];
 
 async function createSession() {
+  try {
+    await claimMonthlySession();
+  } catch (error) {
+    if ((error as { name?: string }).name === "ConditionalCheckFailedException") return response(429, { error: "Monthly demo session limit reached" });
+    throw error;
+  }
   const sessionId = newId("session");
   const session: CloudSession = {
     sessionId, joinCode: createJoinCode(), status: "active", createdAt: new Date().toISOString(),
