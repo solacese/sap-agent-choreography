@@ -19,13 +19,13 @@ export interface CloudSession {
   votes: Record<string, number>;
 }
 
-interface RuntimeConfig { mode: "local" | "cloud"; apiBaseUrl: string }
+export interface RuntimeConfig { mode: "local" | "cloud"; apiBaseUrl: string; transport?: "solace" | "aws-direct-fallback" }
 export interface CreatedCloudSession { session: CloudSession; presenterToken: string; approverToken: string; joinUrl: string; approverUrl: string }
 
 let cachedConfig: Promise<RuntimeConfig> | undefined;
 export const loadRuntimeConfig = () => cachedConfig ??= fetch(`${import.meta.env.BASE_URL}runtime-config.json`, { cache: "no-store" })
-  .then(async (result) => result.ok ? result.json() as Promise<RuntimeConfig> : { mode: "local" as const, apiBaseUrl: "" })
-  .catch(() => ({ mode: "local" as const, apiBaseUrl: "" }));
+  .then(async (result): Promise<RuntimeConfig> => result.ok ? result.json() as Promise<RuntimeConfig> : { mode: "local", apiBaseUrl: "" })
+  .catch((): RuntimeConfig => ({ mode: "local", apiBaseUrl: "" }));
 
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const config = await loadRuntimeConfig();

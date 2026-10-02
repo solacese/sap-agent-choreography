@@ -8,7 +8,7 @@ Parameters:
     Default: https://solacese.github.io/sap-agent-choreography/
   MonthlyBudgetUsd:
     Type: Number
-    Default: 20
+    Default: 18
 
 Globals:
   Function:
@@ -16,7 +16,7 @@ Globals:
     Architectures: [arm64]
     MemorySize: 256
     Timeout: 15
-    Tracing: Active
+    Tracing: PassThrough
     Environment:
       Variables:
         TABLE_NAME: !Ref SessionTable
@@ -239,4 +239,4 @@ Outputs:
   SessionTableName:
     Value: !Ref SessionTable
   EstimatedIdleCost:
-    Value: Serverless pay-per-use; expected under $2/month at demo traffic, budget set to $20/month
+    Value: Serverless pay-per-use; expected under $2/month at demo traffic, budget set to $18/month

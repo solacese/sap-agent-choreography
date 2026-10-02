@@ -10,6 +10,7 @@ export function CloudCollaboration() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
   const hashParams = useMemo(() => new URLSearchParams(window.location.hash.replace(/^#/, "")), []);
   const [available, setAvailable] = useState(false);
+  const [transport, setTransport] = useState<"solace" | "aws-direct-fallback">("aws-direct-fallback");
   const [data, setData] = useState<StoredSession | null>(() => {
     try { return JSON.parse(localStorage.getItem(storageKey) ?? "null") as StoredSession | null; } catch { return null; }
   });
@@ -19,7 +20,10 @@ export function CloudCollaboration() {
   const [qr, setQr] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { void loadRuntimeConfig().then((config) => setAvailable(config.mode === "cloud")); }, []);
+  useEffect(() => { void loadRuntimeConfig().then((config) => {
+    setAvailable(config.mode === "cloud");
+    setTransport(config.transport ?? "aws-direct-fallback");
+  }); }, []);
   useEffect(() => {
     if (data?.approverUrl) void QRCode.toDataURL(data.approverUrl, { width: 240, margin: 1 }).then(setQr);
   }, [data?.approverUrl]);
@@ -76,7 +80,7 @@ export function CloudCollaboration() {
     <section className="cloud-collaboration" aria-labelledby="cloud-title">
       <div className="cloud-summary">
         <span className="cloud-icon"><Cloud size={18} aria-hidden="true" /></span>
-        <div><strong id="cloud-title">Solace connected demo</strong><span>Concurrent AWS agents · phone participation</span></div>
+        <div><strong id="cloud-title">{transport === "solace" ? "Solace connected demo" : "Cloud collaboration preview"}</strong><span>{transport === "solace" ? "Solace AEM · concurrent AWS agents · phone participation" : "Concurrent AWS agents · phone participation · Solace connection pending"}</span></div>
       </div>
       {!session ? (
         <button className="btn btn-primary" type="button" onClick={create} disabled={busy}>

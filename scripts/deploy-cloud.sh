@@ -51,13 +51,13 @@ aws cloudformation deploy \
   --template-file .aws-sam/packaged.yaml \
   --stack-name "$STACK" \
   --capabilities CAPABILITY_IAM \
-  --parameter-overrides SiteUrl="$SITE_URL" MonthlyBudgetUsd=20 \
+  --parameter-overrides SiteUrl="$SITE_URL" MonthlyBudgetUsd=18 \
   --tags Project=sap-agent-choreography CostProfile=demo \
   --region "$REGION" \
   --no-fail-on-empty-changeset
 
 API_URL=$(aws cloudformation describe-stacks --stack-name "$STACK" --region "$REGION" --query 'Stacks[0].Outputs[?OutputKey==`ApiBaseUrl`].OutputValue' --output text)
 SOLACE_SECRET=$(aws cloudformation describe-stacks --stack-name "$STACK" --region "$REGION" --query 'Stacks[0].Outputs[?OutputKey==`SolaceSecretArn`].OutputValue' --output text)
-printf '{"mode":"cloud","apiBaseUrl":"%s"}\n' "$API_URL" > public/runtime-config.json
+printf '{"mode":"cloud","apiBaseUrl":"%s","transport":"aws-direct-fallback"}\n' "$API_URL" > public/runtime-config.json
 
 printf '\nCloud backend deployed.\nAPI: %s\nSolace secret: %s\nNext: fill the Solace secret and run npm run configure:solace.\n' "$API_URL" "$SOLACE_SECRET"
