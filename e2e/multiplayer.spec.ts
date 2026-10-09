@@ -43,6 +43,20 @@ test("invalid or expired phone link shows a recovery message", async ({ page }) 
   await expect(page.getByText(/Ask the presenter to choose New session/i)).toBeVisible();
 });
 
+test("one human agent can submit while unclaimed roles auto-fill", async ({ request }) => {
+  const created = await request.post(`${cloudUrl}/sessions`).then((response) => response.json()) as Created;
+  const joined = await request.post(`${cloudUrl}/join`, { data: { code: created.session.joinCode } }).then((response) => response.json());
+  const token = joined.token as string;
+  await expect((await request.post(`${cloudUrl}/sessions/${created.session.sessionId}/claim-role`, { headers: { "x-session-token": token }, data: { agent: "sourcing", displayName: "Mobile Tester" } })).ok()).toBeTruthy();
+  await expect((await request.post(`${cloudUrl}/sessions/${created.session.sessionId}/trigger`, { headers: { "x-session-token": created.presenterToken }, data: {} })).ok()).toBeTruthy();
+  const submitted = await request.post(`${cloudUrl}/sessions/${created.session.sessionId}/submit-decision`, { headers: { "x-session-token": token }, data: { agent: "sourcing", optionId: "regional-stock", rationale: "Mobile decision" } });
+  expect(submitted.status()).toBe(200);
+  await expect.poll(async () => {
+    const body = await request.get(`${cloudUrl}/sessions/${created.session.sessionId}`).then((response) => response.json());
+    return body.session.status;
+  }, { timeout: 12_000 }).toBe("approval-required");
+});
+
 test("choices unlock only when each human-agent step is active", async ({ browser }) => {
   test.setTimeout(120_000);
   const created = await request("/sessions", { method: "POST" }) as Created;
