@@ -92,7 +92,14 @@ export function migrateSession(input: Partial<CloudSession> & Pick<CloudSession,
 export async function loadSession(sessionId: string): Promise<CloudSession | null> {
   const result = await ddb.send(new GetCommand({ TableName: tableName, Key: sessionKey(sessionId), ConsistentRead: true }));
   const stored = result.Item?.session as CloudSession | undefined;
-  return stored ? migrateSession(stored) : null;
+  if (!stored) return null;
+  const migrated = migrateSession(stored);
+  if (!stored.roleClaims || !stored.agentResults || !stored.mode || !stored.agentStatus?.supervisor) {
+    await replaceSession(migrated, stored.revision).catch((error: unknown) => {
+      if ((error as { name?: string }).name !== "ConditionalCheckFailedException") throw error;
+    });
+  }
+  return migrated;
 }
 
 export async function createSessionRecord(session: CloudSession): Promise<void> {
@@ -100,6 +107,17 @@ export async function createSessionRecord(session: CloudSession): Promise<void> 
     { Put: { TableName: tableName, Item: { ...sessionKey(session.sessionId), ttl: session.expiresAt, session }, ConditionExpression: "attribute_not_exists(pk)" } },
     { Put: { TableName: tableName, Item: { pk: `JOIN#${session.joinCode}`, sk: "LOOKUP", sessionId: session.sessionId, ttl: session.expiresAt }, ConditionExpression: "attribute_not_exists(pk)" } },
   ] }));
+}
+
+export async function claimRoleAtomic(sessionId: string, agent: AgentName, claim: RoleClaim): Promise<void> {
+  await ddb.send(new UpdateCommand({
+    TableName: tableName,
+    Key: sessionKey(sessionId),
+    UpdateExpression: "SET #session.#roleClaims.#agent = :claim, #session.#revision = #session.#revision + :one",
+    ConditionExpression: "attribute_not_exists(#session.#roleClaims.#agent)",
+    ExpressionAttributeNames: { "#session": "session", "#roleClaims": "roleClaims", "#agent": agent, "#revision": "revision" },
+    ExpressionAttributeValues: { ":claim": claim, ":one": 1 },
+  }));
 }
 
 export async function replaceSession(session: CloudSession, expectedRevision: number): Promise<void> {
@@ -119,7 +137,7 @@ export async function appendAgentUpdate(
   state: AgentState,
   event: CloudEvent,
   result?: Record<string, unknown>,
-): Promise<void> {
+): Promise<boolean> {
   const names: Record<string, string> = {
     "#session": "session", "#events": "events", "#revision": "revision", "#agentStatus": "agentStatus", "#agent": agent,
   };
@@ -130,10 +148,13 @@ export async function appendAgentUpdate(
     values[":result"] = result;
     expression += ", #session.#agentResults.#agent = :result";
   }
-  await ddb.send(new UpdateCommand({
+  return ddb.send(new UpdateCommand({
     TableName: tableName, Key: sessionKey(sessionId), UpdateExpression: expression,
-    ConditionExpression: "attribute_exists(pk)", ExpressionAttributeNames: names, ExpressionAttributeValues: values,
-  }));
+    ConditionExpression: "attribute_exists(pk) AND (#session.#agentStatus.#agent = :expected OR attribute_not_exists(#session.#agentStatus.#agent))", ExpressionAttributeNames: names, ExpressionAttributeValues: { ...values, ":expected": state === "running" ? "waiting" : "running" },
+  })).then(() => true).catch((error: unknown) => {
+    if ((error as { name?: string }).name === "ConditionalCheckFailedException") return false;
+    throw error;
+  });
 }
 
 export async function findByJoinCode(code: string): Promise<CloudSession | null> {
