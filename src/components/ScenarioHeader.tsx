@@ -58,12 +58,9 @@ export function ScenarioHeader({
         <div className="topbar-grid" aria-hidden="true" />
         <div className="container topbar-inner">
           <div>
-            <p className="eyebrow">Event-driven supply chain operations</p>
+            <p className="eyebrow">SAP + Solace event choreography</p>
             <h1>MV Horizon disruption control tower</h1>
-            <p className="topbar-copy">
-              A deterministic demonstration of agents coordinating through an event
-              backbone—from carrier signal to approved business execution.
-            </p>
+            <p className="topbar-copy">From disruption signal to governed business execution.</p>
           </div>
           <div className="case-meta" aria-label="Case metadata">
             <div className="mode-badge">
@@ -75,12 +72,8 @@ export function ScenarioHeader({
               <strong>{snapshot.caseId}</strong>
             </div>
             <div className="case-meta-row">
-              <span>Vessel / voyage</span>
-              <strong>MV Horizon · HZ-0426W</strong>
-            </div>
-            <div className="case-meta-row">
-              <span>Event backbone</span>
-              <strong>In-memory AEM boundary</strong>
+              <span>Vessel / backbone</span>
+              <strong>MV Horizon · Solace AEM</strong>
             </div>
           </div>
         </div>
