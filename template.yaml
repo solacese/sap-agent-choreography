@@ -90,6 +90,7 @@ Resources:
           SOURCING_FUNCTION: !Ref SourcingFunction
           LOGISTICS_FUNCTION: !Ref LogisticsFunction
           CUSTOMER_SLA_FUNCTION: !Ref CustomerFunction
+          AGGREGATOR_FUNCTION: !Ref AggregatorFunction
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref SessionTable

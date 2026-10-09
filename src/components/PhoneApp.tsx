@@ -9,9 +9,9 @@ export function PhoneApp() {
     </header>
     <main className="phone-main">
       <div className="phone-hero">
-        <span className="phone-live"><RadioTower size={14} /> Live Solace event mission</span>
-        <h1>MV Horizon response team</h1>
-        <p>Claim an agent role, make your business decision privately, and publish it into the shared event flow.</p>
+        <span className="phone-live"><RadioTower size={14} /> Live mission</span>
+        <h1>MV Horizon response</h1>
+        <p>Choose a role. Make one business decision when your step unlocks.</p>
       </div>
       <CloudCollaboration phoneOnly />
       <div className="phone-safety"><ShieldCheck size={17} /><span>Your decision is advisory until the Supervisor and independent Approver complete the governance gates.</span></div>
