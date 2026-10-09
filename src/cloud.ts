@@ -13,6 +13,7 @@ export interface CloudSession {
   joinCode: string;
   status: "active" | "approval-required" | "approved" | "rejected" | "completed";
   revision: number;
+  expiresAt: number;
   events: CloudEvent[];
   mode: "autonomous" | "human-agents";
   agentStatus: Record<"sourcing" | "logistics" | "customer-sla" | "supervisor", "waiting" | "running" | "complete" | "failed">;
@@ -29,6 +30,10 @@ export const loadRuntimeConfig = () => cachedConfig ??= fetch(`${import.meta.env
   .then(async (result): Promise<RuntimeConfig> => result.ok ? result.json() as Promise<RuntimeConfig> : { mode: "local", apiBaseUrl: "" })
   .catch((): RuntimeConfig => ({ mode: "local", apiBaseUrl: "" }));
 
+export class CloudApiError extends Error {
+  constructor(message: string, readonly status: number) { super(message); this.name = "CloudApiError"; }
+}
+
 const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
   const config = await loadRuntimeConfig();
   if (!config.apiBaseUrl) throw new Error("Cloud collaboration is not configured");
@@ -37,7 +42,7 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
     headers: init?.body ? { "content-type": "application/json", ...(init.headers ?? {}) } : init?.headers,
   });
   const body = await result.json() as T & { error?: string };
-  if (!result.ok) throw new Error(body.error ?? `Cloud request failed (${result.status})`);
+  if (!result.ok) throw new CloudApiError(body.error ?? `Cloud request failed (${result.status})`, result.status);
   return body;
 };
 
