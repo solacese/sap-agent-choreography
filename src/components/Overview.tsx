@@ -84,7 +84,7 @@ export function Overview({ projection }: OverviewProps) {
             <p className="section-kicker">Case choreography</p>
             <h2 id="journey-title">Six-stage business response</h2>
           </div>
-          <p>Every status is projected from the append-only envelope log.</p>
+          <p>Live case progression</p>
         </div>
         <ol className="stage-rail">
           {projection.stages.map((stage, index) => (

@@ -4,6 +4,7 @@ import App from "./App";
 import "./styles.css";
 import "./fiori.css";
 import "./cloud.css";
+import "./polish.css";
 
 const root = document.getElementById("root");
 

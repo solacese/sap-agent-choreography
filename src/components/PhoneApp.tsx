@@ -14,7 +14,7 @@ export function PhoneApp() {
         <p>Choose a role. Make one business decision when your step unlocks.</p>
       </div>
       <CloudCollaboration phoneOnly />
-      <div className="phone-safety"><ShieldCheck size={17} /><span>Your decision is advisory until the Supervisor and independent Approver complete the governance gates.</span></div>
+      <div className="phone-safety"><ShieldCheck size={17} /><span>Supervisor and Approver validate every decision.</span></div>
     </main>
   </div>;
 }
