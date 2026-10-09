@@ -26,6 +26,23 @@ async function phone(browser: Browser, url: string): Promise<{ context: BrowserC
 
 test.skip(!cloudUrl, "Set CLOUD_API_URL to run deployed multiplayer journey");
 
+test("expired presenter cache rotates to a new-session action", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("sap-solace-cloud-session-v1", JSON.stringify({
+    session: { sessionId: "expired", joinCode: "OLD123", expiresAt: 1, status: "active", revision: 0, events: [], agentStatus: {}, agentResults: {}, roleClaims: {}, votes: {} },
+    presenterToken: "expired", approverToken: "expired", joinUrl: "https://example.test", approverUrl: "https://example.test",
+  })));
+  await page.goto(appUrl);
+  await expect(page.getByRole("button", { name: "Start multiplayer session" })).toBeVisible();
+  await expect(page.getByText("OLD123")).toHaveCount(0);
+});
+
+test("invalid or expired phone link shows a recovery message", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${appUrl}?view=phone&session=expired&code=EXPIRED`);
+  await expect(page.getByRole("heading", { name: "This session expired" })).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByText(/Ask the presenter to choose New session/i)).toBeVisible();
+});
+
 test("choices unlock only when each human-agent step is active", async ({ browser }) => {
   test.setTimeout(120_000);
   const created = await request("/sessions", { method: "POST" }) as Created;

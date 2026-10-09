@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Cloud, Copy, LoaderCircle, QrCode, Smartphone, Users, X } from "lucide-react";
 import QRCode from "qrcode";
-import { cloudApi, loadRuntimeConfig, type CloudSession, type CreatedCloudSession } from "../cloud";
+import { CloudApiError, cloudApi, loadRuntimeConfig, type CloudSession, type CreatedCloudSession } from "../cloud";
 import { HumanAgentRole, type HumanAgentName } from "./HumanAgentRole";
 
 const storageKey = "sap-solace-cloud-session-v1";
@@ -29,8 +29,11 @@ export function CloudCollaboration({ phoneOnly = false }: CloudCollaborationProp
   const [qr, setQr] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [expired, setExpired] = useState(false);
+  const [now] = useState(() => Date.now());
 
   useEffect(() => { void loadRuntimeConfig().then((config) => { setAvailable(config.mode === "cloud"); setTransport(config.transport ?? "aws-direct-fallback"); }); }, []);
+  const clearStoredSession = () => { localStorage.removeItem(storageKey); sessionStorage.removeItem(phoneStorageKey); setData(null); setJoined(null); setExpired(true); setOpen(false); };
   const phoneJoinUrl = data?.joinUrl ? (() => { const url = new URL(data.joinUrl); url.searchParams.set("view", "phone"); return url.toString(); })() : undefined;
   const phoneApproverUrl = data?.approverUrl ? (() => { const url = new URL(data.approverUrl); url.searchParams.set("view", "phone"); return url.toString(); })() : undefined;
   useEffect(() => { if (phoneJoinUrl) void QRCode.toDataURL(phoneJoinUrl, { width: 240, margin: 1 }).then(setQr); }, [phoneJoinUrl]);
@@ -38,7 +41,10 @@ export function CloudCollaboration({ phoneOnly = false }: CloudCollaborationProp
     const sessionId = params.get("session"); const approverToken = hashParams.get("token"); const code = params.get("code");
     if (!available || joined) return;
     if (sessionId && approverToken && hashParams.get("role") === "approver") void cloudApi.getSession(sessionId).then(({ session }) => setJoined({ session, token: approverToken, role: "approver" })).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not join session"));
-    else if (code) void cloudApi.join(code).then((value) => { sessionStorage.setItem(phoneStorageKey, JSON.stringify(value)); setJoined(value); }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not join session"));
+    else if (code) void cloudApi.join(code).then((value) => { sessionStorage.setItem(phoneStorageKey, JSON.stringify(value)); setJoined(value); }).catch((cause: unknown) => {
+      if (cause instanceof CloudApiError && cause.status === 404) { clearStoredSession(); return; }
+      setError(cause instanceof Error ? cause.message : "Could not join session");
+    });
   }, [available, hashParams, joined, params]);
   useEffect(() => {
     const sessionId = joined?.session.sessionId ?? data?.session.sessionId;
@@ -46,18 +52,20 @@ export function CloudCollaboration({ phoneOnly = false }: CloudCollaborationProp
     const timer = window.setInterval(() => void cloudApi.getSession(sessionId).then(({ session }) => {
       setJoined((current) => current ? { ...current, session } : current);
       setData((current) => current ? { ...current, session } : current);
-    }).catch(() => undefined), 3000);
+    }).catch((cause: unknown) => { if (cause instanceof CloudApiError && cause.status === 404) clearStoredSession(); }), 3000);
     return () => window.clearInterval(timer);
   }, [available, data?.session.sessionId, joined?.session.sessionId]);
 
-  const create = async () => { setBusy(true); setError(null); try { const created = await cloudApi.createSession(); localStorage.setItem(storageKey, JSON.stringify(created)); setData(created); setOpen(true); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create session"); } finally { setBusy(false); } };
+  const create = async () => { setBusy(true); setError(null); setExpired(false); try { const created = await cloudApi.createSession(); localStorage.setItem(storageKey, JSON.stringify(created)); setData(created); setOpen(true); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create session"); } finally { setBusy(false); } };
   const act = async (action: string, actionToken: string, session: CloudSession, body: Record<string, unknown> = {}) => {
     setBusy(true); setError(null);
     try { const result = await cloudApi.action(session.sessionId, actionToken, action, body); setJoined((current) => current ? { ...current, session: result.session } : current); setData((current) => current ? { ...current, session: result.session } : current); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Cloud action failed"); } finally { setBusy(false); }
   };
 
-  const rawSession = joined?.session ?? data?.session;
+  const storedSession = joined?.session ?? data?.session;
+  const sessionHasExpired = Boolean(storedSession?.expiresAt && storedSession.expiresAt <= now / 1000);
+  const rawSession = sessionHasExpired ? undefined : storedSession;
   const session = rawSession ? {
     ...rawSession,
     mode: rawSession.mode ?? "human-agents" as const,
@@ -75,10 +83,11 @@ export function CloudCollaboration({ phoneOnly = false }: CloudCollaborationProp
   const claimRole = async (role: HumanAgentName) => { if (!joined || !displayName.trim()) return; await act("claim-role", joined.token, joined.session, { agent: role, displayName: displayName.trim() }); setJoined((current) => { if (!current) return current; const next = { ...current, claimedRole: role }; sessionStorage.setItem(phoneStorageKey, JSON.stringify(next)); return next; }); };
 
   if (!available) return null;
+  if (phoneOnly && (expired || sessionHasExpired)) return <section className="phone-expired" role="alert"><Smartphone size={26} /><h2>This session expired</h2><p>Ask the presenter to choose <strong>New session</strong> and scan the refreshed QR code.</p></section>;
   return <section className={phoneOnly ? "cloud-collaboration phone-only-card" : "cloud-collaboration"} aria-labelledby="cloud-title">
     <div className="cloud-summary"><span className="cloud-icon"><Cloud size={18} /></span><div><strong id="cloud-title">{transport === "solace" ? "Solace multiplayer demo" : "Cloud multiplayer preview"}</strong><span>{transport === "solace" ? "Solace AEM · people become agents · phone approval" : "People become agents · phone approval · Solace connection pending"}</span></div></div>
     {!session && !phoneOnly ? <button className="btn btn-primary" onClick={create} disabled={busy}>{busy ? <LoaderCircle size={15} className="spin" /> : <Smartphone size={15} />} Start multiplayer session</button> : session ? <div className="cloud-actions">
-      <span className="cloud-code">Session <strong>{session.joinCode}</strong></span>{!phoneOnly ? <button className="btn" onClick={() => setOpen(true)}><QrCode size={15} /> Connect players</button> : null}
+      <span className="cloud-code">Session <strong>{session.joinCode}</strong><small>expires {new Date(session.expiresAt * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</small></span>{!phoneOnly ? <><button className="btn" onClick={() => setOpen(true)}><QrCode size={15} /> Connect players</button><button className="btn" onClick={create} disabled={busy}>New session</button></> : null}
       {!isPhone && !phoneOnly && session.events.length === 0 ? <><button className="btn" onClick={() => void act("mode", actionToken!, session, { mode: session.mode === "human-agents" ? "autonomous" : "human-agents" })}>{session.mode === "human-agents" ? "Human agents" : "Autonomous"}</button><button className="btn btn-primary" onClick={() => void act("trigger", actionToken!, session)} disabled={busy}>Start scenario</button></> : null}
     </div> : phoneOnly ? <div className="phone-loading"><LoaderCircle size={18} className="spin" /> Joining session…</div> : null}
 
