@@ -1,6 +1,6 @@
 import type { APIGatewayProxyEventV2 } from "aws-lambda";
 import {
-  addEvent, claimMonthlySession, createEvent, createJoinCode, createSessionRecord, createToken, findByJoinCode,
+  addEvent, claimMonthlySession, claimRoleAtomic, createEvent, createJoinCode, createSessionRecord, createToken, findByJoinCode,
   invokeWorker, loadSession, newId, publishSolace, replaceSession, response, siteUrl, verifyToken,
   type AgentName, type CloudSession, type WorkerAgentName,
 } from "./shared";
@@ -67,12 +67,14 @@ export async function handler(event: APIGatewayProxyEventV2) {
     const agent = String(body.agent ?? "") as AgentName;
     if (!allRoles.includes(agent)) return response(400, { error: "Unknown role" });
     if (session.roleClaims[agent]) return response(409, { error: "Role already claimed" });
-    const next = {
-      ...session, revision: session.revision + 1,
-      roleClaims: { ...session.roleClaims, [agent]: { subject: role.subject, displayName: String(body.displayName ?? "Participant"), claimedAt: new Date().toISOString() } },
-    };
-    await replaceSession(next, session.revision);
-    return response(200, { session: next });
+    try {
+      await claimRoleAtomic(sessionId, agent, { subject: role.subject, displayName: String(body.displayName ?? "Participant"), claimedAt: new Date().toISOString() });
+    } catch (error) {
+      if ((error as { name?: string }).name === "ConditionalCheckFailedException") return response(409, { error: "Role already claimed" });
+      throw error;
+    }
+    const updated = await loadSession(sessionId);
+    return response(200, { session: updated });
   }
 
   if (method === "POST" && action === "submit-decision") {
@@ -99,7 +101,12 @@ export async function handler(event: APIGatewayProxyEventV2) {
     const decision = createEvent(sessionId, `agent.${workerAgent}.completed.v1`, `human-${workerAgent}-agent`, { agent: workerAgent, optionId: option.id, result: option.result, rationale: String(body.rationale ?? "") }, session.events.find((item) => item.eventType === "order.risk.assessed.v1")?.eventId ?? null);
     const next = addEvent(session, decision);
     const updated = { ...next, agentStatus: { ...next.agentStatus, [workerAgent]: "complete" as const }, agentResults: { ...next.agentResults, [workerAgent]: option.result } };
-    await replaceSession(updated, session.revision);
+    try {
+      await replaceSession(updated, session.revision);
+    } catch (error) {
+      if ((error as { name?: string }).name === "ConditionalCheckFailedException") return response(409, { error: "Another agent update arrived; refresh and submit again" });
+      throw error;
+    }
     await publishSolace(decision);
     if (rolesReady(updated) && !updated.roleClaims.supervisor) await invokeWorker(process.env.AGGREGATOR_FUNCTION!, { sessionId });
     return response(200, { session: updated });
@@ -118,7 +125,15 @@ export async function handler(event: APIGatewayProxyEventV2) {
     if (session.events.length) return response(409, { error: "Already triggered" });
     const delay = createEvent(sessionId, "shipment.delay.detected.v1", "sap-s4-enterprise-event-enablement", { vessel: "MV Horizon", delayHours: 36, source: "SAP S/4HANA" });
     const risk = createEvent(sessionId, "order.risk.assessed.v1", "integration-suite-orchestrator", { ordersAtRisk: 3, slaExposureUsd: 67500, guardrailPassed: true }, delay.eventId);
-    const assessed = addEvent(addEvent(session, delay), risk);
+    const assessedBase = addEvent(addEvent(session, delay), risk);
+    const assessed = {
+      ...assessedBase,
+      agentStatus: {
+        ...assessedBase.agentStatus,
+        ...Object.fromEntries(workerAgents.filter((agent) => assessedBase.roleClaims[agent]).map((agent) => [agent, "running" as const])),
+        ...(assessedBase.roleClaims.supervisor ? { supervisor: "waiting" as const } : {}),
+      },
+    };
     await replaceSession(assessed, session.revision);
     const publishedToSolace = await Promise.all(assessed.events.map(publishSolace));
     const unclaimed = workerAgents.filter((agent) => !assessed.roleClaims[agent]);

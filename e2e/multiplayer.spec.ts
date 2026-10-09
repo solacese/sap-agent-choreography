@@ -51,10 +51,15 @@ test("one human agent can submit while unclaimed roles auto-fill", async ({ requ
   await expect((await request.post(`${cloudUrl}/sessions/${created.session.sessionId}/trigger`, { headers: { "x-session-token": created.presenterToken }, data: {} })).ok()).toBeTruthy();
   const submitted = await request.post(`${cloudUrl}/sessions/${created.session.sessionId}/submit-decision`, { headers: { "x-session-token": token }, data: { agent: "sourcing", optionId: "regional-stock", rationale: "Mobile decision" } });
   expect(submitted.status()).toBe(200);
+  const startedAt = Date.now();
   await expect.poll(async () => {
     const body = await request.get(`${cloudUrl}/sessions/${created.session.sessionId}`).then((response) => response.json());
     return body.session.status;
-  }, { timeout: 12_000 }).toBe("approval-required");
+  }, { timeout: 8_000 }).toBe("approval-required");
+  expect(Date.now() - startedAt).toBeLessThan(8_000);
+  const finalSession = await request.get(`${cloudUrl}/sessions/${created.session.sessionId}`).then((response) => response.json());
+  const starts = finalSession.session.events.filter((event: { eventType: string }) => event.eventType.endsWith(".started.v1")).map((event: { occurredAt: string }) => Date.parse(event.occurredAt));
+  if (starts.length > 1) expect(Math.max(...starts) - Math.min(...starts)).toBeLessThan(1_000);
 });
 
 test("choices unlock only when each human-agent step is active", async ({ browser }) => {

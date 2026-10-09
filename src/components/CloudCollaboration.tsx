@@ -52,7 +52,7 @@ export function CloudCollaboration({ phoneOnly = false }: CloudCollaborationProp
     const timer = window.setInterval(() => void cloudApi.getSession(sessionId).then(({ session }) => {
       setJoined((current) => current ? { ...current, session } : current);
       setData((current) => current ? { ...current, session } : current);
-    }).catch((cause: unknown) => { if (cause instanceof CloudApiError && cause.status === 404) clearStoredSession(); }), 3000);
+    }).catch((cause: unknown) => { if (cause instanceof CloudApiError && cause.status === 404) clearStoredSession(); }), 2000);
     return () => window.clearInterval(timer);
   }, [available, data?.session.sessionId, joined?.session.sessionId]);
 

@@ -28,14 +28,16 @@ export async function handler(input: { sessionId: string; agent?: WorkerAgentNam
   const started = createEvent(session.sessionId, `agent.${selectedAgent}.started.v1`, `${selectedAgent}-agent`, {
     agent: selectedAgent, queue: `Q.DEMO.${selectedAgent.toUpperCase().replace("-", "_")}`, status: "running",
   }, causationId);
-  await appendAgentUpdate(session.sessionId, selectedAgent, "running", started);
+  const startedAccepted = await appendAgentUpdate(session.sessionId, selectedAgent, "running", started);
+  if (!startedAccepted) return;
   await publishSolace(started);
 
   await new Promise((resolve) => setTimeout(resolve, delayByAgent[selectedAgent]));
   const completed = createEvent(session.sessionId, `agent.${selectedAgent}.completed.v1`, `${selectedAgent}-agent`, {
     agent: selectedAgent, status: "complete", result: results[selectedAgent],
   }, started.eventId);
-  await appendAgentUpdate(session.sessionId, selectedAgent, "complete", completed, results[selectedAgent]);
+  const completedAccepted = await appendAgentUpdate(session.sessionId, selectedAgent, "complete", completed, results[selectedAgent]);
+  if (!completedAccepted) return;
   await publishSolace(completed);
   await invokeWorker(process.env.AGGREGATOR_FUNCTION!, { sessionId: session.sessionId });
 }
