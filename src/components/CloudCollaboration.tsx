@@ -3,6 +3,7 @@ import { Cloud, Copy, LoaderCircle, QrCode, Smartphone, Users, X } from "lucide-
 import QRCode from "qrcode";
 import { CloudApiError, cloudApi, loadRuntimeConfig, type CloudSession, type CreatedCloudSession } from "../cloud";
 import { HumanAgentRole, type HumanAgentName } from "./HumanAgentRole";
+import { CloudExecution } from "./CloudExecution";
 
 const storageKey = "sap-solace-cloud-session-v1";
 const phoneStorageKey = "sap-solace-phone-role-v1";
@@ -40,7 +41,7 @@ export function CloudCollaboration({ phoneOnly = false }: CloudCollaborationProp
   useEffect(() => {
     const sessionId = params.get("session"); const approverToken = hashParams.get("token"); const code = params.get("code");
     if (!available || joined) return;
-    if (sessionId && approverToken && hashParams.get("role") === "approver") void cloudApi.getSession(sessionId).then(({ session }) => setJoined({ session, token: approverToken, role: "approver" })).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not join session"));
+    if (sessionId && approverToken && hashParams.get("role") === "approver") void cloudApi.getSession(sessionId, approverToken).then(({ session }) => setJoined({ session, token: approverToken, role: "approver" })).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Could not join session"));
     else if (code) void cloudApi.join(code).then((value) => { sessionStorage.setItem(phoneStorageKey, JSON.stringify(value)); setJoined(value); }).catch((cause: unknown) => {
       if (cause instanceof CloudApiError && cause.status === 404) { clearStoredSession(); return; }
       setError(cause instanceof Error ? cause.message : "Could not join session");
@@ -49,12 +50,14 @@ export function CloudCollaboration({ phoneOnly = false }: CloudCollaborationProp
   useEffect(() => {
     const sessionId = joined?.session.sessionId ?? data?.session.sessionId;
     if (!sessionId || !available) return;
-    const timer = window.setInterval(() => void cloudApi.getSession(sessionId).then(({ session }) => {
+    const pollToken = joined?.token ?? data?.presenterToken;
+    if (!pollToken) return;
+    const timer = window.setInterval(() => void cloudApi.getSession(sessionId, pollToken).then(({ session }) => {
       setJoined((current) => current ? { ...current, session } : current);
       setData((current) => current ? { ...current, session } : current);
     }).catch((cause: unknown) => { if (cause instanceof CloudApiError && cause.status === 404) clearStoredSession(); }), 2000);
     return () => window.clearInterval(timer);
-  }, [available, data?.session.sessionId, joined?.session.sessionId]);
+  }, [available, data?.presenterToken, data?.session.sessionId, joined?.session.sessionId, joined?.token]);
 
   const create = async () => { setBusy(true); setError(null); setExpired(false); try { const created = await cloudApi.createSession(); localStorage.setItem(storageKey, JSON.stringify(created)); setData(created); setOpen(true); } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not create session"); } finally { setBusy(false); } };
   const act = async (action: string, actionToken: string, session: CloudSession, body: Record<string, unknown> = {}) => {
@@ -111,6 +114,7 @@ export function CloudCollaboration({ phoneOnly = false }: CloudCollaborationProp
     {isPhone && joined?.role === "participant" && !claimedRole ? <div className="role-picker"><h2>Pick your role</h2><p className="role-picker-copy">Enter your name, then choose one available mission.</p><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your name" aria-label="Your name" /><div className="role-buttons">{roleNames.map((role) => <button className="human-option" disabled={Boolean(session?.roleClaims[role]) || !displayName.trim() || busy} onClick={() => void claimRole(role)} key={role}><Users size={16} /><span><strong>{role.replace("-", "/")}</strong><small>{session?.roleClaims[role] ? "Taken" : "Available"}</small></span></button>)}</div></div> : null}
     {isPhone && joined?.role === "participant" && claimedRole && session ? <HumanAgentRole session={session} token={joined.token} role={claimedRole} onSubmit={async (role, optionId, rationale) => { await act("submit-decision", joined.token, session, { agent: role, optionId, rationale }); }} /> : null}
     {isPhone && joined?.role === "approver" && session?.status === "approval-required" ? <div className="phone-approval"><strong>Approval required</strong><span>Participant Supervisor recommendation · apply policy and authorize execution</span><div className="button-row"><button className="btn btn-success" onClick={() => void act("approve", joined.token, session, { actor: "Phone approver" })}>Approve</button><button className="btn btn-danger" onClick={() => void act("reject", joined.token, session, { actor: "Phone approver" })}>Reject</button></div></div> : null}
+    {session && ["approved", "rejected", "executing", "execution-failed", "completed"].includes(session.status) ? <CloudExecution session={session} canRetry={joined?.role === "approver" || !isPhone} busy={busy} onRetry={async () => { await act("retry-execution", actionToken!, session); }} /> : null}
     {error ? <div className="cloud-error" role="alert">{error}</div> : null}
 
     {open ? <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}><div className="connect-dialog" role="dialog" aria-modal="true" aria-labelledby="connect-title"><button className="icon-button connect-close" aria-label="Close phone connection" onClick={() => setOpen(false)}><X size={18} /></button><Smartphone size={28} color="var(--sap-link)" /><h2 id="connect-title">Join the agent team</h2>{qr ? <img src={qr} alt={`QR code to join session ${session?.joinCode}`} /> : null}<p>Scan to claim an agent role, or enter:</p><div className="join-code">{session?.joinCode ?? params.get("code")}</div>{phoneJoinUrl ? <button className="btn" onClick={() => void navigator.clipboard.writeText(phoneJoinUrl)}><Copy size={15} /> Copy participant link</button> : null}{phoneApproverUrl ? <button className="btn" onClick={() => void navigator.clipboard.writeText(phoneApproverUrl)}><Copy size={15} /> Copy approver link</button> : null}<p className="connect-note"><Users size={14} /> Participants independently claim roles. Keep the approver link separate.</p></div></div> : null}

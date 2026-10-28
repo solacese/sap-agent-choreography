@@ -43,6 +43,12 @@ test("invalid or expired phone link shows a recovery message", async ({ page }) 
   await expect(page.getByText(/Ask the presenter to choose New session/i)).toBeVisible();
 });
 
+test("session state requires an authenticated session token", async ({ request }) => {
+  const created = await request.post(`${cloudUrl}/sessions`).then((response) => response.json()) as Created;
+  expect((await request.get(`${cloudUrl}/sessions/${created.session.sessionId}`)).status()).toBe(401);
+  expect((await request.get(`${cloudUrl}/sessions/${created.session.sessionId}`, { headers: { "x-session-token": created.presenterToken } })).status()).toBe(200);
+});
+
 test("one human agent can submit while unclaimed roles auto-fill", async ({ request }) => {
   const created = await request.post(`${cloudUrl}/sessions`).then((response) => response.json()) as Created;
   const joined = await request.post(`${cloudUrl}/join`, { data: { code: created.session.joinCode } }).then((response) => response.json());
@@ -53,11 +59,11 @@ test("one human agent can submit while unclaimed roles auto-fill", async ({ requ
   expect(submitted.status()).toBe(200);
   const startedAt = Date.now();
   await expect.poll(async () => {
-    const body = await request.get(`${cloudUrl}/sessions/${created.session.sessionId}`).then((response) => response.json());
+    const body = await request.get(`${cloudUrl}/sessions/${created.session.sessionId}`, { headers: { "x-session-token": created.presenterToken } }).then((response) => response.json());
     return body.session.status;
   }, { timeout: 8_000 }).toBe("approval-required");
   expect(Date.now() - startedAt).toBeLessThan(8_000);
-  const finalSession = await request.get(`${cloudUrl}/sessions/${created.session.sessionId}`).then((response) => response.json());
+  const finalSession = await request.get(`${cloudUrl}/sessions/${created.session.sessionId}`, { headers: { "x-session-token": created.presenterToken } }).then((response) => response.json());
   const starts = finalSession.session.events.filter((event: { eventType: string }) => event.eventType.endsWith(".started.v1")).map((event: { occurredAt: string }) => Date.parse(event.occurredAt));
   if (starts.length > 1) expect(Math.max(...starts) - Math.min(...starts)).toBeLessThan(1_000);
 });
@@ -111,6 +117,10 @@ test("choices unlock only when each human-agent step is active", async ({ browse
     await expect(approver.page.getByText("Approval required")).toBeVisible({ timeout: 8_000 });
     await approver.page.getByRole("button", { name: "Approve" }).click();
     await expect(approver.page.getByText("Approval required")).toHaveCount(0, { timeout: 8_000 });
+    await expect(approver.page.getByText("Reroute needs retry")).toBeVisible({ timeout: 8_000 });
+    await approver.page.getByRole("button", { name: "Retry reroute" }).click();
+    await expect(approver.page.getByText("Execution completed")).toBeVisible({ timeout: 8_000 });
+    await expect(approver.page.getByText(/customer\.notification\.sent\.v1/i)).toBeVisible();
   } finally {
     await Promise.all(players.map(({ context }) => context.close()));
   }

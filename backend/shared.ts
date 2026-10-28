@@ -33,7 +33,7 @@ export interface CloudEvent {
 export interface CloudSession {
   sessionId: string;
   joinCode: string;
-  status: "active" | "approval-required" | "approved" | "rejected" | "completed";
+  status: "active" | "approval-required" | "approved" | "rejected" | "executing" | "execution-failed" | "completed";
   createdAt: string;
   expiresAt: number;
   revision: number;

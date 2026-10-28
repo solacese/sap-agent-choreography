@@ -176,6 +176,6 @@ Public site: <https://solacese.github.io/sap-agent-choreography/>
 
 ## Limitations
 
-- The public demo has no server process, shared database, external event broker, real approval identity, or live SAP integration.
+- The public demo has a shared serverless session backend and complete cloud approval/execution lifecycle, but no live SAP system or configured external Solace broker credentials.
 - Scenario IDs, timestamps, customers, orders, and financial figures are fictional and deterministic.
 - “Reasoning” panels explain programmed rules; they do not represent hidden model reasoning or an LLM decision.

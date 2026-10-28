@@ -11,7 +11,7 @@ export interface CloudEvent {
 export interface CloudSession {
   sessionId: string;
   joinCode: string;
-  status: "active" | "approval-required" | "approved" | "rejected" | "completed";
+  status: "active" | "approval-required" | "approved" | "rejected" | "executing" | "execution-failed" | "completed";
   revision: number;
   expiresAt: number;
   events: CloudEvent[];
@@ -49,7 +49,7 @@ const request = async <T>(path: string, init?: RequestInit): Promise<T> => {
 export const cloudApi = {
   createSession: () => request<CreatedCloudSession>("/sessions", { method: "POST" }),
   join: (code: string, role: "participant" | "approver" = "participant") => request<{ session: CloudSession; token: string; role: string }>("/join", { method: "POST", body: JSON.stringify({ code, role }) }),
-  getSession: (sessionId: string) => request<{ session: CloudSession }>(`/sessions/${sessionId}`),
+  getSession: (sessionId: string, token: string) => request<{ session: CloudSession }>(`/sessions/${sessionId}`, { headers: { "x-session-token": token } }),
   action: (sessionId: string, token: string, action: string, body: Record<string, unknown> = {}) => request<{ session: CloudSession }>(`/sessions/${sessionId}/${action}`, {
     method: "POST", headers: { "x-session-token": token }, body: JSON.stringify(body),
   }),
