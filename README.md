@@ -49,7 +49,7 @@ The preview is served at `http://127.0.0.1:4173/sap-agent-choreography/` because
 
 ## Two-minute presenter walkthrough
 
-1. Point out the **SIMULATED** badge and the difference between “AI answers questions” and “AI participates in the process.”
+1. Introduce the difference between “AI answers questions” and “AI participates in the process.”
 2. Select **Trigger vessel delay**. No user prompt is required to initiate the event.
 3. Select **Play automatically**. The app assesses impact, runs the two proposal agents independently, and evaluates policy.
 4. At the approval gate, refresh the page to demonstrate durable browser persistence.

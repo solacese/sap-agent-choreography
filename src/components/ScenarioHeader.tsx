@@ -63,10 +63,6 @@ export function ScenarioHeader({
             <p className="topbar-copy">From disruption signal to governed business execution.</p>
           </div>
           <div className="case-meta" aria-label="Case metadata">
-            <div className="mode-badge">
-              <span className="mode-dot" aria-hidden="true" />
-              SIMULATED — NO LIVE SAP OR AEM CONNECTION
-            </div>
             <div className="case-meta-row">
               <span>Active case</span>
               <strong>{snapshot.caseId}</strong>
