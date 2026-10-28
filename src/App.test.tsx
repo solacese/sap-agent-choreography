@@ -48,7 +48,7 @@ describe("operations console", () => {
     const user = userEvent.setup();
     const { runtime } = renderApp();
 
-    expect(screen.getByText(/SIMULATED — NO LIVE SAP OR AEM CONNECTION/i)).toBeVisible();
+    expect(screen.getByRole("heading", { name: "MV Horizon disruption control tower" })).toBeVisible();
     await advanceToApproval(runtime);
 
     expect(await screen.findByRole("heading", { name: "Human approval required" })).toBeVisible();
