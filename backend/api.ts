@@ -24,10 +24,11 @@ async function createSession() {
     agentResults: {}, roleClaims: {}, votes: { sla: 0, cost: 0, margin: 0, emissions: 0 },
   };
   await createSessionRecord(session);
+  const [presenterToken, approverToken] = await Promise.all([createToken(sessionId, "presenter"), createToken(sessionId, "approver")]);
   return response(201, {
-    session, presenterToken: createToken(sessionId, "presenter"), approverToken: createToken(sessionId, "approver"),
+    session, presenterToken, approverToken,
     joinUrl: `${siteUrl}?view=phone&session=${sessionId}&code=${session.joinCode}`,
-    approverUrl: `${siteUrl}?view=phone&session=${sessionId}#token=${encodeURIComponent(createToken(sessionId, "approver"))}&role=approver`,
+    approverUrl: `${siteUrl}?view=phone&session=${sessionId}#token=${encodeURIComponent(approverToken)}&role=approver`,
   });
 }
 
@@ -41,7 +42,7 @@ export async function handler(event: APIGatewayProxyEventV2) {
     const body = parseBody(event);
     const session = await findByJoinCode(String(body.code ?? ""));
     if (!session || session.expiresAt < Date.now() / 1000) return response(404, { error: "Session not found or expired" });
-    return response(200, { session, token: createToken(session.sessionId, "participant"), role: "participant" });
+    return response(200, { session, token: await createToken(session.sessionId, "participant"), role: "participant" });
   }
 
   const match = path.match(/\/sessions\/([^/]+)(?:\/([^/]+))?$/);
@@ -49,7 +50,7 @@ export async function handler(event: APIGatewayProxyEventV2) {
   const [, sessionId, action] = match;
   const session = await loadSession(sessionId);
   if (!session) return response(404, { error: "Session not found" });
-  const role = verifyToken(token(event), sessionId);
+  const role = await verifyToken(token(event), sessionId);
   if (!role) return response(401, { error: "Invalid or expired session token" });
   if (method === "GET" && !action) return response(200, { session });
   const body = parseBody(event);

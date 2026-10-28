@@ -6,6 +6,9 @@ Parameters:
   SiteUrl:
     Type: String
     Default: https://solacese.github.io/sap-agent-choreography/
+  SiteOrigin:
+    Type: String
+    Default: https://solacese.github.io
   MonthlyBudgetUsd:
     Type: Number
     Default: 18
@@ -20,9 +23,10 @@ Globals:
     Environment:
       Variables:
         TABLE_NAME: !Ref SessionTable
-        TOKEN_SECRET: !Ref TokenSecret
+        TOKEN_SECRET_ARN: !Ref TokenSecret
         SOLACE_SECRET_ARN: !Ref SolaceSecret
         SITE_URL: !Ref SiteUrl
+        SITE_ORIGIN: !Ref SiteOrigin
         MAX_MONTHLY_SESSIONS: 1000
     Tags:
       Project: sap-agent-choreography
@@ -34,7 +38,7 @@ Resources:
     Properties:
       StageName: prod
       CorsConfiguration:
-        AllowOrigins: ['*']
+        AllowOrigins: [!Ref SiteOrigin]
         AllowHeaders: [content-type, x-session-token, authorization]
         AllowMethods: [GET, POST, OPTIONS]
         MaxAge: 600
@@ -107,6 +111,8 @@ Resources:
             FunctionName: !Ref ExecutionFunction
         - AWSSecretsManagerGetSecretValuePolicy:
             SecretArn: !Ref SolaceSecret
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Ref TokenSecret
       Events:
         Root:
           Type: HttpApi

@@ -6,6 +6,7 @@ import { SecretsManagerClient, GetSecretValueCommand } from "@aws-sdk/client-sec
 
 export const tableName = process.env.TABLE_NAME!;
 export const siteUrl = process.env.SITE_URL ?? "https://solacese.github.io/sap-agent-choreography/";
+const allowedOrigin = process.env.SITE_ORIGIN ?? "https://solacese.github.io";
 export const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 export const lambda = new LambdaClient({});
 const secrets = new SecretsManagerClient({});
@@ -49,7 +50,7 @@ export const response = (statusCode: number, body: unknown) => ({
   statusCode,
   headers: {
     "content-type": "application/json",
-    "access-control-allow-origin": "*",
+    "access-control-allow-origin": allowedOrigin,
     "access-control-allow-headers": "content-type,x-session-token",
     "access-control-allow-methods": "GET,POST,OPTIONS",
     "cache-control": "no-store",
@@ -165,19 +166,28 @@ export async function findByJoinCode(code: string): Promise<CloudSession | null>
   return sessionId ? loadSession(sessionId) : null;
 }
 
-export function createToken(sessionId: string, role: "presenter" | "approver" | "participant", subject = newId("device")): string {
+let tokenSecret: string | undefined;
+async function getTokenSecret(): Promise<string> {
+  if (tokenSecret) return tokenSecret;
+  const value = await secrets.send(new GetSecretValueCommand({ SecretId: process.env.TOKEN_SECRET_ARN! }));
+  tokenSecret = value.SecretString;
+  if (!tokenSecret) throw new Error("Token signing secret is unavailable");
+  return tokenSecret;
+}
+
+export async function createToken(sessionId: string, role: "presenter" | "approver" | "participant", subject = newId("device")): Promise<string> {
   const expiry = Math.floor(Date.now() / 1000) + 4 * 60 * 60;
   const value = `${sessionId}.${role}.${subject}.${expiry}`;
-  const signature = createHmac("sha256", process.env.TOKEN_SECRET!).update(value).digest("base64url");
+  const signature = createHmac("sha256", await getTokenSecret()).update(value).digest("base64url");
   return `${value}.${signature}`;
 }
 
-export function verifyToken(token: string | undefined, sessionId: string) {
+export async function verifyToken(token: string | undefined, sessionId: string) {
   if (!token) return null;
   const [tokenSession, role, subject, expiryText, signature] = token.split(".");
   if (!tokenSession || !role || !subject || !expiryText || !signature || tokenSession !== sessionId || Number(expiryText) < Date.now() / 1000) return null;
   const value = `${tokenSession}.${role}.${subject}.${expiryText}`;
-  const expected = createHmac("sha256", process.env.TOKEN_SECRET!).update(value).digest("base64url");
+  const expected = createHmac("sha256", await getTokenSecret()).update(value).digest("base64url");
   const valid = signature.length === expected.length && timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
   return valid && ["presenter", "approver", "participant"].includes(role)
     ? { role: role as "presenter" | "approver" | "participant", subject }
