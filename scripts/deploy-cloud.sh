@@ -53,7 +53,7 @@ aws cloudformation deploy \
   --template-file .aws-sam/packaged.yaml \
   --stack-name "$STACK" \
   --capabilities CAPABILITY_IAM \
-  --parameter-overrides SiteUrl="$SITE_URL" MonthlyBudgetUsd=18 \
+  --parameter-overrides SiteUrl="$SITE_URL" SiteOrigin="${SITE_ORIGIN:-https://solacese.github.io}" MonthlyBudgetUsd=18 \
   --tags Project=sap-agent-choreography CostProfile=demo \
   --region "$REGION" \
   --no-fail-on-empty-changeset

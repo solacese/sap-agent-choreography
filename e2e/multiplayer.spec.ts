@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
 
 const cloudUrl = process.env.CLOUD_API_URL;
-const appUrl = process.env.CLOUD_APP_URL ?? "http://127.0.0.1:4173/sap-agent-choreography/";
+const appUrl = process.env.CLOUD_APP_URL ?? "https://solacese.github.io/sap-agent-choreography/";
 
 interface Created {
   session: { sessionId: string; joinCode: string };
