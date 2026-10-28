@@ -49,10 +49,10 @@ export async function handler(event: APIGatewayProxyEventV2) {
   const [, sessionId, action] = match;
   const session = await loadSession(sessionId);
   if (!session) return response(404, { error: "Session not found" });
-  if (method === "GET" && !action) return response(200, { session });
-  const body = parseBody(event);
   const role = verifyToken(token(event), sessionId);
   if (!role) return response(401, { error: "Invalid or expired session token" });
+  if (method === "GET" && !action) return response(200, { session });
+  const body = parseBody(event);
 
   if (method === "POST" && action === "mode") {
     if (role.role !== "presenter" || session.events.length) return response(403, { error: "Only the presenter can select mode before start" });
@@ -144,6 +144,13 @@ export async function handler(event: APIGatewayProxyEventV2) {
     return response(202, { session: assessed, transport: publishedToSolace.some(Boolean) ? "solace" : "aws-direct-fallback", awaitingHumans: assessed.mode === "human-agents" && unclaimed.length < workerAgents.length });
   }
 
+  if (method === "POST" && action === "retry-execution") {
+    if (role.role !== "presenter" && role.role !== "approver") return response(403, { error: "Presenter or Approver role required" });
+    if (session.status !== "execution-failed") return response(409, { error: "Execution is not waiting for retry" });
+    await invokeWorker(process.env.EXECUTION_FUNCTION!, { sessionId, action: "retry" });
+    return response(202, { session });
+  }
+
   if (method === "POST" && ["approve", "reject"].includes(action ?? "")) {
     if (role.role !== "approver" && role.role !== "presenter") return response(403, { error: "Approver role required" });
     if (session.status !== "approval-required") return response(409, { error: "Approval is not pending" });
@@ -155,6 +162,7 @@ export async function handler(event: APIGatewayProxyEventV2) {
     const finalized = { ...next, status: approved ? "approved" as const : "rejected" as const };
     await replaceSession(finalized, session.revision);
     await publishSolace(decision);
+    if (approved) await invokeWorker(process.env.EXECUTION_FUNCTION!, { sessionId, action: "start" });
     return response(200, { session: finalized });
   }
 

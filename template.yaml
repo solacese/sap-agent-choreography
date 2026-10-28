@@ -91,6 +91,7 @@ Resources:
           LOGISTICS_FUNCTION: !Ref LogisticsFunction
           CUSTOMER_SLA_FUNCTION: !Ref CustomerFunction
           AGGREGATOR_FUNCTION: !Ref AggregatorFunction
+          EXECUTION_FUNCTION: !Ref ExecutionFunction
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref SessionTable
@@ -102,6 +103,8 @@ Resources:
             FunctionName: !Ref CustomerFunction
         - LambdaInvokePolicy:
             FunctionName: !Ref AggregatorFunction
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ExecutionFunction
         - AWSSecretsManagerGetSecretValuePolicy:
             SecretArn: !Ref SolaceSecret
       Events:
@@ -216,6 +219,24 @@ Resources:
       BuildMethod: esbuild
       BuildProperties:
         EntryPoints: [backend/aggregator.ts]
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+
+  ExecutionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: backend/execution.handler
+      Timeout: 15
+      ReservedConcurrentExecutions: 1
+      Policies:
+        - DynamoDBCrudPolicy: { TableName: !Ref SessionTable }
+        - AWSSecretsManagerGetSecretValuePolicy: { SecretArn: !Ref SolaceSecret }
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        EntryPoints: [backend/execution.ts]
         Minify: true
         Target: es2022
         Sourcemap: false

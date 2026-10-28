@@ -10,10 +10,11 @@ command -v npx >/dev/null || { echo "npm/npx is required" >&2; exit 1; }
 aws sts get-caller-identity --region "$REGION" >/dev/null
 
 rm -rf .aws-sam/build
-mkdir -p .aws-sam/build/api .aws-sam/build/worker .aws-sam/build/aggregator
+mkdir -p .aws-sam/build/api .aws-sam/build/worker .aws-sam/build/aggregator .aws-sam/build/execution
 npx esbuild backend/api.ts --bundle --platform=node --target=node22 --outfile=.aws-sam/build/api/index.js
 npx esbuild backend/worker.ts --bundle --platform=node --target=node22 --outfile=.aws-sam/build/worker/index.js
 npx esbuild backend/aggregator.ts --bundle --platform=node --target=node22 --outfile=.aws-sam/build/aggregator/index.js
+npx esbuild backend/execution.ts --bundle --platform=node --target=node22 --outfile=.aws-sam/build/execution/index.js
 
 cp template.yaml .aws-sam/template.yaml
 python3 - <<'PY'
@@ -23,6 +24,7 @@ s=p.read_text()
 s=s.replace('CodeUri: .\n      Handler: backend/api.handler', 'CodeUri: build/api/\n      Handler: index.handler')
 s=s.replace('CodeUri: .\n      Handler: backend/worker.handler', 'CodeUri: build/worker/\n      Handler: index.handler')
 s=s.replace('CodeUri: .\n      Handler: backend/aggregator.handler', 'CodeUri: build/aggregator/\n      Handler: index.handler')
+s=s.replace('CodeUri: .\n      Handler: backend/execution.handler', 'CodeUri: build/execution/\n      Handler: index.handler')
 lines=[]
 skip=False
 for line in s.splitlines():
